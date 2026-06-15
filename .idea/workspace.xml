@@ -2,14 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="3de089c3-c3ae-45f8-b971-ac2926b7a2e5" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/otp_job.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/otp_job.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.env" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/otp_job/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/otp_job/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/otp_job/client.py" beforeDir="false" afterPath="$PROJECT_DIR$/otp_job/client.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/otp_job/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/otp_job/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/otp_job/exceptions.py" beforeDir="false" afterPath="$PROJECT_DIR$/otp_job/exceptions.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/otp_job/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/otp_job/models.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pyproject.toml" beforeDir="false" afterPath="$PROJECT_DIR$/pyproject.toml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />

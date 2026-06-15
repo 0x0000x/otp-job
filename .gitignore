@@ -1,0 +1,9 @@
+# Local-only
+
+
+#Exclude everything
+.env
+.gitignore
+#Except this file
+!.env.example
+!.gitignore
