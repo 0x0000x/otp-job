@@ -1,7 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="3de089c3-c3ae-45f8-b971-ac2926b7a2e5" name="Changes" comment="" />
+    <list default="true" id="3de089c3-c3ae-45f8-b971-ac2926b7a2e5" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/otp_job.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/otp_job.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/otp_job/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/otp_job/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/otp_job/client.py" beforeDir="false" afterPath="$PROJECT_DIR$/otp_job/client.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/otp_job/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/otp_job/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/otp_job/exceptions.py" beforeDir="false" afterPath="$PROJECT_DIR$/otp_job/exceptions.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/otp_job/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/otp_job/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pyproject.toml" beforeDir="false" afterPath="$PROJECT_DIR$/pyproject.toml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -19,6 +29,9 @@
   "associatedIndex": 6
 }]]></component>
   <component name="ProjectId" id="3FAxTUQg1bkV9uAdZesPb5dMtjs" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="2" id="Add" />
+  </component>
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
@@ -26,9 +39,18 @@
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
     "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true"
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "main",
+    "last_opened_file_path": "/Users/ya/PyCharmProjects/otp_job"
   }
 }]]></component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$" />
+    </key>
+  </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
@@ -45,6 +67,17 @@
       <updated>1781531682737</updated>
     </task>
     <servers />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/otp_job/models.py</url>
+          <line>511</line>
+          <option name="timeStamp" value="1" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>

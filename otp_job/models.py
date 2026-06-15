@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import dataclasses
+import json
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any, Generic, List, Literal, Mapping, Optional, TypeVar
+from enum import Enum
+from typing import Any, Generic, Literal, Mapping, Optional, TypeVar
 
 
 CodeType = Literal["sms", "app"]
@@ -10,6 +13,207 @@ ListType = Literal["all", "suc"]
 Status = Literal["succ", "err"]
 
 T = TypeVar("T")
+
+
+class SerializableModel:
+    """Mixin for JSON-friendly dataclass models."""
+
+    def to_dict(self) -> dict[str, Any]:
+        return _to_plain(self)
+
+    def to_json(self, *, indent: Optional[int] = None) -> str:
+        return json.dumps(self.to_dict(), ensure_ascii=False, indent=indent)
+
+
+class ResponseStatus(str, Enum):
+    SUCCESS = "succ"
+    ERROR = "err"
+
+
+class NumberStatusTone(str, Enum):
+    SUCCESS = "success"
+    WARNING = "warning"
+    ERROR = "error"
+    INFO = "info"
+
+
+class NumberFailureCode(str, Enum):
+    INVALID_PHONE_NUMBER = "101"
+    USED_SUCCESSFULLY_WITHIN_30_DAYS = "102"
+    STILL_IN_PROGRESS = "103"
+    COUNTRY_DEMAND_SATISFIED = "104"
+    UNSUPPORTED_COUNTRY_OR_OTP_TYPE = "105"
+    TEMPORARILY_UNAVAILABLE = "202"
+
+
+class APIErrorCode(str, Enum):
+    INVALID_API_TOKEN = "invalid_api_token"
+    NUMBER_OWNER_MISMATCH = "number_owner_mismatch"
+    NUMBER_NOT_FOUND = "number_not_found"
+    OTP_FORMAT_ERROR = "otp_format_error"
+    OTP_STATUS_NOT_ALLOWED = "otp_status_not_allowed"
+    NUMBER_SUBMISSIONS_PAUSED = "number_submissions_paused"
+    PROJECT_CLOSED = "project_closed"
+    INVALID_PROJECT_ID = "invalid_project_id"
+    INVALID_JSON_FORMAT = "invalid_json_format"
+    INVALID_UID = "invalid_uid"
+    PAGE_SIZE_TOO_LARGE = "page_size_too_large"
+
+
+@dataclass(frozen=True)
+class FailureAdvice(SerializableModel):
+    code: str
+    title: str
+    suggestion: str
+    retry_later: bool = False
+
+
+@dataclass(frozen=True)
+class APIErrorAdvice(SerializableModel):
+    code: str
+    title: str
+    suggestion: str
+    retry_later: bool = False
+    check_credentials: bool = False
+
+
+NUMBER_FAILURE_ADVICE: Mapping[str, FailureAdvice] = {
+    NumberFailureCode.INVALID_PHONE_NUMBER.value: FailureAdvice(
+        code=NumberFailureCode.INVALID_PHONE_NUMBER.value,
+        title="Invalid phone number",
+        suggestion="Check the phone number format and country code.",
+    ),
+    NumberFailureCode.USED_SUCCESSFULLY_WITHIN_30_DAYS.value: FailureAdvice(
+        code=NumberFailureCode.USED_SUCCESSFULLY_WITHIN_30_DAYS.value,
+        title="Number already used successfully within 30 days",
+        suggestion="Use a different phone number.",
+    ),
+    NumberFailureCode.STILL_IN_PROGRESS.value: FailureAdvice(
+        code=NumberFailureCode.STILL_IN_PROGRESS.value,
+        title="Number still in progress",
+        suggestion="Retry later.",
+        retry_later=True,
+    ),
+    NumberFailureCode.COUNTRY_DEMAND_SATISFIED.value: FailureAdvice(
+        code=NumberFailureCode.COUNTRY_DEMAND_SATISFIED.value,
+        title="Country demand is currently satisfied",
+        suggestion="Try another country or wait for demand to reopen.",
+    ),
+    NumberFailureCode.UNSUPPORTED_COUNTRY_OR_OTP_TYPE.value: FailureAdvice(
+        code=NumberFailureCode.UNSUPPORTED_COUNTRY_OR_OTP_TYPE.value,
+        title="Unsupported country or OTP type",
+        suggestion="Try another country or OTP type.",
+    ),
+    NumberFailureCode.TEMPORARILY_UNAVAILABLE.value: FailureAdvice(
+        code=NumberFailureCode.TEMPORARILY_UNAVAILABLE.value,
+        title="Number temporarily unavailable",
+        suggestion="Retry later.",
+        retry_later=True,
+    ),
+}
+
+API_ERROR_ADVICE: Mapping[str, APIErrorAdvice] = {
+    APIErrorCode.INVALID_API_TOKEN.value: APIErrorAdvice(
+        code=APIErrorCode.INVALID_API_TOKEN.value,
+        title="Invalid API token",
+        suggestion="Confirm that uid and api_token match the credentials from OTP Job support.",
+        check_credentials=True,
+    ),
+    APIErrorCode.NUMBER_OWNER_MISMATCH.value: APIErrorAdvice(
+        code=APIErrorCode.NUMBER_OWNER_MISMATCH.value,
+        title="Number owner mismatch",
+        suggestion="Confirm that the request uid matches the user that uploaded the number.",
+        check_credentials=True,
+    ),
+    APIErrorCode.NUMBER_NOT_FOUND.value: APIErrorAdvice(
+        code=APIErrorCode.NUMBER_NOT_FOUND.value,
+        title="Number does not exist",
+        suggestion="Confirm that the number was uploaded successfully before this request.",
+    ),
+    APIErrorCode.OTP_FORMAT_ERROR.value: APIErrorAdvice(
+        code=APIErrorCode.OTP_FORMAT_ERROR.value,
+        title="OTP format error",
+        suggestion="Confirm that code contains digits only.",
+    ),
+    APIErrorCode.OTP_STATUS_NOT_ALLOWED.value: APIErrorAdvice(
+        code=APIErrorCode.OTP_STATUS_NOT_ALLOWED.value,
+        title="Current status does not allow OTP submission",
+        suggestion=(
+            "Query the current number status first. "
+            "OTP can be submitted only for status 1 or 6."
+        ),
+    ),
+    APIErrorCode.NUMBER_SUBMISSIONS_PAUSED.value: APIErrorAdvice(
+        code=APIErrorCode.NUMBER_SUBMISSIONS_PAUSED.value,
+        title="Number submissions are paused",
+        suggestion="Wait a few minutes before uploading numbers again.",
+        retry_later=True,
+    ),
+    APIErrorCode.PROJECT_CLOSED.value: APIErrorAdvice(
+        code=APIErrorCode.PROJECT_CLOSED.value,
+        title="Project is closed",
+        suggestion="Confirm the project_id and whether this project is open for submissions.",
+    ),
+    APIErrorCode.INVALID_PROJECT_ID.value: APIErrorAdvice(
+        code=APIErrorCode.INVALID_PROJECT_ID.value,
+        title="Invalid project id",
+        suggestion="Confirm project_id with OTP Job support or your project dashboard.",
+    ),
+    APIErrorCode.INVALID_JSON_FORMAT.value: APIErrorAdvice(
+        code=APIErrorCode.INVALID_JSON_FORMAT.value,
+        title="Invalid JSON format",
+        suggestion="Confirm that the request body is valid JSON and matches the documented schema.",
+    ),
+    APIErrorCode.INVALID_UID.value: APIErrorAdvice(
+        code=APIErrorCode.INVALID_UID.value,
+        title="Invalid uid",
+        suggestion="Confirm that uid is correct and belongs to the API token being used.",
+        check_credentials=True,
+    ),
+    APIErrorCode.PAGE_SIZE_TOO_LARGE.value: APIErrorAdvice(
+        code=APIErrorCode.PAGE_SIZE_TOO_LARGE.value,
+        title="Page size too large",
+        suggestion="Use page_size between 1 and 100.",
+    ),
+}
+
+_API_ERROR_TIP_PATTERNS: tuple[tuple[str, APIErrorCode], ...] = (
+    ("api token", APIErrorCode.INVALID_API_TOKEN),
+    ("number submissions are paused", APIErrorCode.NUMBER_SUBMISSIONS_PAUSED),
+    ("number does not belong", APIErrorCode.NUMBER_OWNER_MISMATCH),
+    ("owner", APIErrorCode.NUMBER_OWNER_MISMATCH),
+    ("number does not exist", APIErrorCode.NUMBER_NOT_FOUND),
+    ("not exist", APIErrorCode.NUMBER_NOT_FOUND),
+    ("otp format", APIErrorCode.OTP_FORMAT_ERROR),
+    ("code format", APIErrorCode.OTP_FORMAT_ERROR),
+    ("digits only", APIErrorCode.OTP_FORMAT_ERROR),
+    ("status does not allow", APIErrorCode.OTP_STATUS_NOT_ALLOWED),
+    ("does not allow otp", APIErrorCode.OTP_STATUS_NOT_ALLOWED),
+    ("project is closed", APIErrorCode.PROJECT_CLOSED),
+    ("project closed", APIErrorCode.PROJECT_CLOSED),
+    ("project_id", APIErrorCode.INVALID_PROJECT_ID),
+    ("project id", APIErrorCode.INVALID_PROJECT_ID),
+    ("json", APIErrorCode.INVALID_JSON_FORMAT),
+    ("uid", APIErrorCode.INVALID_UID),
+    ("page_size", APIErrorCode.PAGE_SIZE_TOO_LARGE),
+    ("page size", APIErrorCode.PAGE_SIZE_TOO_LARGE),
+)
+
+
+def get_api_error_advice(
+    error_code: Optional[str] = None,
+    tips: Optional[str] = None,
+) -> Optional[APIErrorAdvice]:
+    if error_code:
+        advice = API_ERROR_ADVICE.get(error_code)
+        if advice:
+            return advice
+
+    normalized_tips = (tips or "").strip().lower()
+    for pattern, code in _API_ERROR_TIP_PATTERNS:
+        if pattern in normalized_tips:
+            return API_ERROR_ADVICE[code.value]
+    return None
 
 
 def _as_dict(value: Any) -> Mapping[str, Any]:
@@ -47,16 +251,62 @@ def _bool(value: Any, default: bool = False) -> bool:
     return default
 
 
+def _to_plain(value: Any) -> Any:
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return {
+            field.name: _to_plain(getattr(value, field.name))
+            for field in dataclasses.fields(value)
+            if field.repr or hasattr(value, field.name)
+        }
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, Mapping):
+        return {str(key): _to_plain(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_to_plain(item) for item in value]
+    return value
+
+
 @dataclass(frozen=True)
-class APIResponse(Generic[T]):
+class APIResponse(Generic[T], SerializableModel):
     status: str
     data: T
     tips: Optional[str] = None
     raw: Optional[Mapping[str, Any]] = None
+    http_status: Optional[int] = None
+    headers: Mapping[str, str] = dataclasses.field(default_factory=dict)
+    elapsed_ms: Optional[float] = None
+    request_id: Optional[str] = None
+    attempts: int = 1
+
+    @property
+    def ok(self) -> bool:
+        return self.status == ResponseStatus.SUCCESS.value and (
+            self.http_status is None or self.http_status < 400
+        )
+
+    @property
+    def raw_json(self) -> Optional[Mapping[str, Any]]:
+        return self.raw
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "tips": self.tips,
+            "data": _to_plain(self.data),
+            "http_status": self.http_status,
+            "headers": dict(self.headers),
+            "elapsed_ms": self.elapsed_ms,
+            "request_id": self.request_id,
+            "attempts": self.attempts,
+            "raw": _to_plain(self.raw),
+        }
 
 
 @dataclass(frozen=True)
-class StatusData:
+class StatusData(SerializableModel):
     healthy: bool
     service: str
     version: str
@@ -72,7 +322,7 @@ class StatusData:
 
 
 @dataclass(frozen=True)
-class UserInfoData:
+class UserInfoData(SerializableModel):
     uid: str
     withdrawable_balance: str
     withdrawing_balance: str
@@ -106,7 +356,7 @@ class UserInfoData:
 
 
 @dataclass(frozen=True)
-class NumberUploadItem:
+class NumberUploadItem(SerializableModel):
     ccnum: str
     success: bool
     failed_code: str
@@ -122,15 +372,31 @@ class NumberUploadItem:
             failed_reason=_str(data.get("failed_reason")),
         )
 
+    @property
+    def failure_code(self) -> Optional[NumberFailureCode]:
+        try:
+            return NumberFailureCode(self.failed_code)
+        except ValueError:
+            return None
+
+    @property
+    def failure_advice(self) -> Optional[FailureAdvice]:
+        return NUMBER_FAILURE_ADVICE.get(self.failed_code)
+
+    @property
+    def retry_later(self) -> bool:
+        advice = self.failure_advice
+        return bool(advice and advice.retry_later)
+
 
 @dataclass(frozen=True)
-class NumbersUploadData:
+class NumbersUploadData(SerializableModel):
     project_id: str
     uid: str
     code_type: str
     count_succ: int
     count_failed: int
-    items: List[NumberUploadItem]
+    items: list[NumberUploadItem]
 
     @classmethod
     def from_mapping(cls, value: Any) -> "NumbersUploadData":
@@ -146,7 +412,7 @@ class NumbersUploadData:
 
 
 @dataclass(frozen=True)
-class OTPUploadData:
+class OTPUploadData(SerializableModel):
     project_id: str
     ccnum: str
     code: str
@@ -166,7 +432,7 @@ class OTPUploadData:
 
 
 @dataclass(frozen=True)
-class NumberInfoData:
+class NumberInfoData(SerializableModel):
     project_id: str
     uid: str
     ccnum: str
@@ -208,7 +474,7 @@ class NumberInfoData:
 
 
 @dataclass(frozen=True)
-class ProjectInfo:
+class ProjectInfo(SerializableModel):
     project_id: str
     project_name: str
     project_income: str
@@ -228,7 +494,7 @@ class ProjectInfo:
 
 
 @dataclass(frozen=True)
-class NumbersListData:
+class NumbersListData(SerializableModel):
     project_info: ProjectInfo
     list_type: str
     page: int
@@ -236,7 +502,7 @@ class NumbersListData:
     total: int
     total_pages: int
     has_more: bool
-    items: List[NumberInfoData]
+    items: list[NumberInfoData]
 
     @classmethod
     def from_mapping(cls, value: Any) -> "NumbersListData":
@@ -251,4 +517,3 @@ class NumbersListData:
             has_more=_bool(data.get("has_more")),
             items=[NumberInfoData.from_mapping(item) for item in _as_list(data.get("items"))],
         )
-

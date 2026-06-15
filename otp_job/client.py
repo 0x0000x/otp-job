@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import time
 from collections.abc import AsyncIterator, Callable, Iterator, Mapping
-from typing import Any, Optional, TypeVar
+from typing import Any, Optional, TypeVar, Union
 
 import httpx
 
-from .config import OTPJobConfig
+from ._logging import get_logger, sanitize_payload
+from .config import OTPJobConfig, RetryPolicy
 from .exceptions import OTPJobAPIError, OTPJobTransportError
 from .models import (
     APIResponse,
@@ -30,14 +32,22 @@ class _BaseOTPJobClient:
         uid: str,
         api_token: str,
         timeout: float = 15.0,
+        retries: Optional[Union[int, RetryPolicy]] = None,
+        log_level: Optional[str] = None,
+        mask_sensitive: bool = True,
     ) -> None:
+        retry_policy = RetryPolicy.from_value(retries)
         self.config = OTPJobConfig(
             base_url=base_url,
             uid=str(uid),
             api_token=str(api_token),
             timeout=timeout,
+            retry_policy=retry_policy,
+            log_level=log_level,
+            mask_sensitive=mask_sensitive,
         )
         self.base_url = self.config.normalized_base_url()
+        self._logger = get_logger(log_level)
 
     def _auth_payload(self, extra: Optional[Mapping[str, Any]] = None) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -55,6 +65,9 @@ class _BaseOTPJobClient:
         self,
         response: httpx.Response,
         parser: Callable[[Any], T],
+        *,
+        elapsed_ms: Optional[float] = None,
+        attempts: int = 1,
     ) -> APIResponse[T]:
         try:
             payload = response.json()
@@ -101,6 +114,67 @@ class _BaseOTPJobClient:
             tips=tips if isinstance(tips, str) else None,
             data=parser(data),
             raw=payload,
+            http_status=response.status_code,
+            headers=dict(response.headers),
+            elapsed_ms=elapsed_ms,
+            request_id=self._extract_request_id(response.headers),
+            attempts=attempts,
+        )
+
+    @staticmethod
+    def _extract_request_id(headers: Mapping[str, str]) -> Optional[str]:
+        for name in ("x-request-id", "request-id", "x-correlation-id"):
+            value = headers.get(name)
+            if value:
+                return value
+        return None
+
+    def _should_retry_response(self, response: httpx.Response, attempt: int) -> bool:
+        return (
+            attempt < self.config.retry_policy.attempts
+            and response.status_code in self.config.retry_policy.status_codes
+        )
+
+    def _log_request(self, method: str, path: str, payload: Optional[Mapping[str, Any]]) -> None:
+        if not self._logger.isEnabledFor(10):
+            return
+        self._logger.debug(
+            "request method=%s path=%s payload=%s",
+            method,
+            path,
+            sanitize_payload(payload, mask_sensitive=self.config.mask_sensitive),
+        )
+
+    def _log_response(
+        self,
+        method: str,
+        path: str,
+        response: httpx.Response,
+        *,
+        elapsed_ms: float,
+        attempts: int,
+    ) -> None:
+        if not self._logger.isEnabledFor(20):
+            return
+        self._logger.info(
+            "response method=%s path=%s status_code=%s elapsed_ms=%.2f attempts=%s",
+            method,
+            path,
+            response.status_code,
+            elapsed_ms,
+            attempts,
+        )
+
+    def _log_retry(self, method: str, path: str, attempt: int, delay: float, reason: str) -> None:
+        if not self._logger.isEnabledFor(20):
+            return
+        self._logger.info(
+            "retry method=%s path=%s attempt=%s delay=%.2f reason=%s",
+            method,
+            path,
+            attempt,
+            delay,
+            reason,
         )
 
     @staticmethod
@@ -152,9 +226,20 @@ class OTPJobClient(_BaseOTPJobClient):
         uid: str,
         api_token: str,
         timeout: float = 15.0,
+        retries: Optional[Union[int, RetryPolicy]] = None,
+        log_level: Optional[str] = None,
+        mask_sensitive: bool = True,
         client: Optional[httpx.Client] = None,
     ) -> None:
-        super().__init__(base_url=base_url, uid=uid, api_token=api_token, timeout=timeout)
+        super().__init__(
+            base_url=base_url,
+            uid=uid,
+            api_token=api_token,
+            timeout=timeout,
+            retries=retries,
+            log_level=log_level,
+            mask_sensitive=mask_sensitive,
+        )
         self._owns_client = client is None
         self._client = client or httpx.Client(
             timeout=timeout,
@@ -179,11 +264,35 @@ class OTPJobClient(_BaseOTPJobClient):
         parser: Callable[[Any], T],
         json: Optional[Mapping[str, Any]] = None,
     ) -> APIResponse[T]:
-        try:
-            response = self._client.request(method, self._url(path), json=json)
-        except httpx.HTTPError as exc:
-            raise OTPJobTransportError(f"API request failed before a response was received: {exc}") from exc
-        return self._parse_response(response, parser)
+        self._log_request(method, path, json)
+        started = time.monotonic()
+        last_exc: Optional[httpx.HTTPError] = None
+
+        for attempt in range(1, self.config.retry_policy.attempts + 1):
+            try:
+                response = self._client.request(method, self._url(path), json=json)
+            except httpx.HTTPError as exc:
+                last_exc = exc
+                if attempt >= self.config.retry_policy.attempts:
+                    break
+                delay = self.config.retry_policy.delay_for_attempt(attempt + 1)
+                self._log_retry(method, path, attempt + 1, delay, exc.__class__.__name__)
+                time.sleep(delay)
+                continue
+
+            if self._should_retry_response(response, attempt):
+                delay = self.config.retry_policy.delay_for_attempt(attempt + 1)
+                self._log_retry(method, path, attempt + 1, delay, str(response.status_code))
+                time.sleep(delay)
+                continue
+
+            elapsed_ms = (time.monotonic() - started) * 1000
+            self._log_response(method, path, response, elapsed_ms=elapsed_ms, attempts=attempt)
+            return self._parse_response(response, parser, elapsed_ms=elapsed_ms, attempts=attempt)
+
+        raise OTPJobTransportError(
+            f"API request failed before a response was received: {last_exc}"
+        ) from last_exc
 
     def status(self) -> APIResponse[StatusData]:
         """GET /status."""
@@ -300,9 +409,20 @@ class AsyncOTPJobClient(_BaseOTPJobClient):
         uid: str,
         api_token: str,
         timeout: float = 15.0,
+        retries: Optional[Union[int, RetryPolicy]] = None,
+        log_level: Optional[str] = None,
+        mask_sensitive: bool = True,
         client: Optional[httpx.AsyncClient] = None,
     ) -> None:
-        super().__init__(base_url=base_url, uid=uid, api_token=api_token, timeout=timeout)
+        super().__init__(
+            base_url=base_url,
+            uid=uid,
+            api_token=api_token,
+            timeout=timeout,
+            retries=retries,
+            log_level=log_level,
+            mask_sensitive=mask_sensitive,
+        )
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             timeout=timeout,
@@ -327,11 +447,37 @@ class AsyncOTPJobClient(_BaseOTPJobClient):
         parser: Callable[[Any], T],
         json: Optional[Mapping[str, Any]] = None,
     ) -> APIResponse[T]:
-        try:
-            response = await self._client.request(method, self._url(path), json=json)
-        except httpx.HTTPError as exc:
-            raise OTPJobTransportError(f"API request failed before a response was received: {exc}") from exc
-        return self._parse_response(response, parser)
+        import asyncio
+
+        self._log_request(method, path, json)
+        started = time.monotonic()
+        last_exc: Optional[httpx.HTTPError] = None
+
+        for attempt in range(1, self.config.retry_policy.attempts + 1):
+            try:
+                response = await self._client.request(method, self._url(path), json=json)
+            except httpx.HTTPError as exc:
+                last_exc = exc
+                if attempt >= self.config.retry_policy.attempts:
+                    break
+                delay = self.config.retry_policy.delay_for_attempt(attempt + 1)
+                self._log_retry(method, path, attempt + 1, delay, exc.__class__.__name__)
+                await asyncio.sleep(delay)
+                continue
+
+            if self._should_retry_response(response, attempt):
+                delay = self.config.retry_policy.delay_for_attempt(attempt + 1)
+                self._log_retry(method, path, attempt + 1, delay, str(response.status_code))
+                await asyncio.sleep(delay)
+                continue
+
+            elapsed_ms = (time.monotonic() - started) * 1000
+            self._log_response(method, path, response, elapsed_ms=elapsed_ms, attempts=attempt)
+            return self._parse_response(response, parser, elapsed_ms=elapsed_ms, attempts=attempt)
+
+        raise OTPJobTransportError(
+            f"API request failed before a response was received: {last_exc}"
+        ) from last_exc
 
     async def status(self) -> APIResponse[StatusData]:
         """GET /status."""

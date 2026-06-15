@@ -8,6 +8,12 @@ retries, offers structured logging, and includes optional console and CLI tools.
 
 Repository: <https://github.com/0x0000x/otp_job>
 
+Get started with OTP Job by opening the Telegram bot:
+<https://t.me/otpjobbot?start=u1050>
+
+Use the bot to start selling phone numbers, then contact OTP Job support to
+request your `api_token` for programmatic access.
+
 ## Features
 
 - Sync and async clients built on `httpx`.
@@ -32,14 +38,17 @@ public base URL in this package. Use the domain given to you by OTP Job support.
 
 ## Getting API Access
 
-To use this client, obtain credentials from OTP Job support:
+To use this client, first activate your account through the OTP Job bot, then
+obtain API credentials from OTP Job support:
 
-1. Contact OTP Job online support.
-2. Ask for your API base URL, `uid`, and matching `api_token`.
-3. Confirm which project ids you can submit numbers to.
-4. Keep the API token secret. Do not commit it to Git, paste it into logs, or
+1. Open <https://t.me/otpjobbot?start=u1050>.
+2. Start selling phone numbers through the bot.
+3. Contact OTP Job support and request your API base URL, `uid`, and matching
+   `api_token`.
+4. Confirm which project IDs you can submit numbers to.
+5. Keep the API token secret. Do not commit it to Git, paste it into logs, or
    expose it in client-side applications.
-5. Test access with `GET /status`, then call a credentialed endpoint such as
+6. Test access with `GET /status`, then call a credentialed endpoint such as
    `users_info()`.
 
 Recommended environment variables:
@@ -206,12 +215,53 @@ print(response.data.count_failed)
 
 for item in response.data.items:
     print(item.ccnum, item.success, item.failed_code, item.failed_reason)
+    print(item.failure_code)
+    print(item.failure_advice)
+    print(item.retry_later)
 ```
 
 Rules enforced before sending:
 
 - `code_type` must be `sms` or `app`.
 - `ccnum_list` must contain 1 to 20 numbers.
+
+Built-in number failure codes are available through `NumberFailureCode` and
+`NumberUploadItem.failure_advice`:
+
+```python
+from otp_job import NumberFailureCode
+
+for item in response.data.items:
+    if item.success:
+        continue
+
+    if item.failure_code is NumberFailureCode.INVALID_PHONE_NUMBER:
+        print("Check the phone number format and country code.")
+
+    if item.retry_later:
+        print("Retry this number later.")
+
+    if item.failure_advice:
+        print(item.failure_advice.title)
+        print(item.failure_advice.suggestion)
+```
+
+Common number submission failure codes:
+
+| Code | Meaning | Suggested handling |
+| --- | --- | --- |
+| `101` | Invalid phone number | Check the phone number format and country code. |
+| `102` | Number was already used successfully within 30 days | Use a different phone number. |
+| `103` | Number is still in progress | Retry later. |
+| `104` | Demand for this country is currently satisfied | Try another country or wait for demand to reopen. |
+| `105` | Unsupported country or OTP type | Try another country or OTP type. |
+| `202` | Number is temporarily unavailable | Retry later. |
+
+If the global submission switch is closed, the whole request returns an API
+error immediately with a message like `Number submissions are paused. Please
+wait a few minutes.` If the project is closed, the API also returns an error
+immediately. If the whole request returns `status = err`, first check `uid`,
+`api_token`, `project_id`, and JSON format.
 
 ### Upload OTP
 
@@ -339,6 +389,9 @@ except OTPJobAPIError as exc:
     print(exc.http_status)
     print(exc.api_status)
     print(exc.error_code)
+    print(exc.error_code_enum)
+    print(exc.suggestion)
+    print(exc.retry_later)
     print(exc.response_body)
 ```
 
@@ -355,6 +408,45 @@ except OTPJobTransportError as exc:
 except OTPJobError as exc:
     print("Any OTP Job client error:", exc)
 ```
+
+Documented API-level error handling is built in. When the API returns
+`data.error_code`, the exception exposes a typed enum and handling advice:
+
+```python
+from otp_job import APIErrorCode, OTPJobAPIError
+
+try:
+    client.otp_upload(project_id="1", ccnum="8801712345678", code="123456")
+except OTPJobAPIError as exc:
+    if exc.error_code_enum is APIErrorCode.NUMBER_OWNER_MISMATCH:
+        print("Confirm that uid owns this number.")
+
+    if exc.error_advice:
+        print(exc.error_advice.title)
+        print(exc.error_advice.suggestion)
+```
+
+The client also infers advice from documented `tips` messages when the server
+does not include `data.error_code`.
+
+| Error code | Meaning | Suggested handling |
+| --- | --- | --- |
+| `invalid_api_token` | API token is invalid | Confirm `uid` and `api_token`. |
+| `number_owner_mismatch` | Number does not belong to current user | Confirm the request `uid`. |
+| `number_not_found` | Number does not exist | Confirm the number was uploaded successfully before. |
+| `otp_format_error` | OTP format error | Confirm `code` contains digits only. |
+| `otp_status_not_allowed` | Current status does not allow OTP submission | Query current number status first. |
+| `number_submissions_paused` | Global number submission switch is closed | Wait a few minutes and retry later. |
+| `project_closed` | Project is closed | Confirm project status and `project_id`. |
+| `invalid_project_id` | Invalid project id | Confirm `project_id`. |
+| `invalid_json_format` | Invalid request JSON | Confirm the JSON body and schema. |
+| `invalid_uid` | Invalid uid | Confirm `uid` and credentials. |
+| `page_size_too_large` | Page size is greater than 100 | Use `page_size` between 1 and 100. |
+
+For any whole-request `status = err`, read both `exc.message` and
+`exc.error_code`. If the request failed before an endpoint model is returned,
+there will be no per-item `NumberUploadItem`; use `OTPJobAPIError` fields
+instead.
 
 ## Retries
 
@@ -563,10 +655,16 @@ CLI exit codes:
 Main public models:
 
 - `APIResponse[T]`
+- `APIErrorCode`
+- `APIErrorAdvice`
+- `API_ERROR_ADVICE`
 - `StatusData`
 - `UserInfoData`
 - `NumbersUploadData`
 - `NumberUploadItem`
+- `NumberFailureCode`
+- `FailureAdvice`
+- `NUMBER_FAILURE_ADVICE`
 - `OTPUploadData`
 - `NumberInfoData`
 - `ProjectInfo`
@@ -579,6 +677,8 @@ Useful literals and enums:
 - `ListType`: `all` or `suc`
 - `ResponseStatus`: `succ` or `err`
 - `NumberStatusTone`: `success`, `warning`, `error`, or `info`
+- `NumberFailureCode`: `101`, `102`, `103`, `104`, `105`, or `202`
+- `APIErrorCode`: documented whole-request API error codes
 
 ## Security Notes
 
@@ -640,6 +740,10 @@ tests/
 The bundled API notes live in [`otp_job/docs.md`](otp_job/docs.md). They include
 the current endpoint list, request body shapes, response examples, and field
 notes.
+
+## Author
+
+Created and maintained by Amgad Fahd.
 
 ## License
 

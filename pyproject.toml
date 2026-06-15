@@ -4,15 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "otp-job"
-version = "0.1.0"
-description = "Typed Python client for the OTP Job API."
+version = "0Also.1.0"
+description = "A typed, sync and async Python client for the OTP Job API."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [
-  { name = "OTP Job Contributors" }
+  { name = "Amgad Fahd" }
 ]
-keywords = ["otp", "sms", "api", "client"]
+keywords = ["otp", "sms", "api", "client", "otpjob", "python", "httpx", "asyncio", "typing"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
@@ -32,14 +32,21 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+cli = [
+  "rich>=13.7",
+]
 dev = [
+  "pytest>=8",
   "ruff>=0.6",
 ]
 
+[project.scripts]
+otp-job = "otp_job.cli:main"
+
 [project.urls]
-Homepage = "https://github.com/your-org/otp-job"
-Repository = "https://github.com/your-org/otp-job"
-Issues = "https://github.com/your-org/otp-job/issues"
+Homepage = "https://github.com/0x0000x/otp-job"
+Repository = "https://github.com/0x0000x/otp-job"
+Issues = "https://github.com/0x0000x/otp-job/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["otp_job"]

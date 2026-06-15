@@ -1,26 +1,43 @@
 from .client import AsyncOTPJobClient, OTPJobClient
-from .config import OTPJobConfig
+from .config import OTPJobConfig, RetryPolicy
 from .exceptions import OTPJobAPIError, OTPJobError, OTPJobTransportError
 from .models import (
+    APIErrorAdvice,
+    APIErrorCode,
+    API_ERROR_ADVICE,
     APIResponse,
     CodeType,
+    FailureAdvice,
     ListType,
+    NUMBER_FAILURE_ADVICE,
+    NumberFailureCode,
     NumberInfoData,
+    NumberStatusTone,
     NumbersListData,
     NumbersUploadData,
     NumberUploadItem,
     OTPUploadData,
     ProjectInfo,
+    ResponseStatus,
+    SerializableModel,
     StatusData,
     UserInfoData,
+    get_api_error_advice,
 )
 
 __all__ = [
+    "APIErrorAdvice",
+    "APIErrorCode",
+    "API_ERROR_ADVICE",
     "APIResponse",
     "AsyncOTPJobClient",
     "CodeType",
+    "FailureAdvice",
     "ListType",
+    "NUMBER_FAILURE_ADVICE",
+    "NumberFailureCode",
     "NumberInfoData",
+    "NumberStatusTone",
     "NumberUploadItem",
     "NumbersListData",
     "NumbersUploadData",
@@ -31,8 +48,12 @@ __all__ = [
     "OTPJobTransportError",
     "OTPUploadData",
     "ProjectInfo",
+    "ResponseStatus",
+    "RetryPolicy",
+    "SerializableModel",
     "StatusData",
     "UserInfoData",
+    "get_api_error_advice",
 ]
 
 __version__ = "0.1.0"
