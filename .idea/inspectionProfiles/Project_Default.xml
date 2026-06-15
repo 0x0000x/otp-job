@@ -1,0 +1,25 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <list>
+          <option value="argparse" />
+          <option value="pycryptodome" />
+          <option value="requests" />
+          <option value="phonenumbers" />
+          <option value="aiogram" />
+          <option value="psycopg2-binary" />
+          <option value="python-dotenv" />
+          <option value="aiohttp" />
+          <option value="async-timeout" />
+          <option value="aiohttp_socks" />
+          <option value="aiosqlite" />
+          <option value="ipaddress" />
+          <option value="selectolax" />
+          <option value="python-whois" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>
